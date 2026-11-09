@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EDA Campaña Bancaria</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Hanken+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ===========================================
+   THEME: Cobalt Grid (versión despejada)
+   Cambiá estos valores para cambiar todo el look
+   =========================================== */
+:root {
+    --paper: #F0EBDE;
+    --paper-2: #E6E0CE;
+    --ink: #1F2BE0;
+    --ink-soft: #5560E5;
+    --grid: rgba(31, 43, 224, 0.06);
+    --faint: rgba(31, 43, 224, 0.18);
+    --stage-bg: #d9d3c2;
+    --slide-bg: var(--paper);
+    --serif: 'Newsreader', Georgia, serif;
+    --sans: 'Hanken Grotesk', sans-serif;
+    --mono: 'DM Mono', ui-monospace, monospace;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ===========================================
+   FIXED 16:9 STAGE (viewport-base.css completo)
+   =========================================== */
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--stage-bg, #000); }
+.deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg, #000); }
+.deck-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: var(--slide-bg, #fff); }
+.slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; display: block; visibility: hidden; opacity: 0; pointer-events: none; background: var(--slide-bg, #fff); }
+.slide.active, .slide.visible { visibility: visible; opacity: 1; pointer-events: auto; z-index: 1; }
+img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+.deck-controls { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 1000; }
+@media print {
+    html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+    .deck-viewport { position: static; overflow: visible; background: #fff; }
+    .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+    .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; page-break-after: always; }
+    .slide:last-child { break-after: auto; page-break-after: auto; }
+    .deck-controls, .notes-panel, .edit-toggle, .edit-hotzone, .progress { display: none !important; }
+    .r { opacity: 1 !important; transform: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; }
+}
+
+/* ===========================================
+   SLIDE SURFACE: papel + cuadrícula tenue
+   =========================================== */
+.slide { color: var(--ink); font-family: var(--sans); }
+.slide::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(to right, var(--grid) 1px, transparent 1px),
+                      linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+    background-size: 48px 48px;
+}
+.notes { display: none; }
+
+/* ===========================================
+   CHROME: hairlines + encabezado + pie (lo inserta JS)
+   =========================================== */
+.chrome { position: absolute; left: 96px; right: 96px; display: flex; justify-content: space-between;
+          font: 400 18px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; z-index: 2; }
+.chrome.top { top: 34px; }
+.chrome.bot { bottom: 30px; }
+.hair { position: absolute; left: 96px; right: 96px; height: 1.5px; background: var(--ink); z-index: 2; }
+.hair.top { top: 70px; }
+.hair.bot { bottom: 66px; }
+
+/* Área de contenido */
+.c { position: absolute; left: 120px; right: 120px; top: 120px; bottom: 106px; z-index: 2; }
+
+/* ===========================================
+   TIPOGRAFÍA
+   =========================================== */
+.kick { font: 500 22px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px; }
+h1 { font: 400 196px/0.9 var(--serif); letter-spacing: -0.015em; }
+h1 i, h2 i, .q i { font-style: italic; }
+h2 { font: 400 76px/1.0 var(--serif); letter-spacing: -0.008em; max-width: 1500px; }
+.lede { font: 400 30px/1.4 var(--sans); max-width: 1100px; }
+.small { font: 400 22px/1.4 var(--sans); }
+.mono { font-family: var(--mono); }
+.label { font: 600 18px var(--sans); letter-spacing: 0.16em; text-transform: uppercase; }
+
+/* Lista de hallazgos con divisores finos */
+.facts { list-style: none; }
+.facts li { font: 400 27px/1.32 var(--sans); padding: 16px 0; border-bottom: 1px solid var(--faint); }
+.facts li:first-child { border-top: 1.5px solid var(--ink); }
+.facts.spread li { padding: 21px 0; }
+.facts.fill { flex: 1; display: flex; flex-direction: column; }
+.facts.fill li { flex: 1; display: flex; align-items: center; font-size: 31px; }
+.facts.plain li { font-size: 29px; padding: 20px 0; }
+.facts b { font: 400 36px/1 var(--serif); }
+.facts .t { display: block; font: 500 17px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; opacity: 0.75; }
+
+/* Recuadro "por qué" / decisión */
+.callout { border: 1.5px solid var(--ink); padding: 22px 26px; font: 400 25px/1.4 var(--sans); background: var(--paper); }
+.callout .label { display: block; margin-bottom: 10px; }
+.callout.solid { background: var(--ink); color: var(--paper); }
+
+/* Gráfico del notebook en una placa blanca */
+.plate { background: #fff; border: 1.5px solid var(--ink); padding: 14px; display: flex; align-items: center; justify-content: center; }
+.plate img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.cap { font: 400 17px var(--mono); letter-spacing: 0.06em; margin-top: 10px; text-transform: uppercase; opacity: 0.8; }
+
+/* Layout: texto a la izquierda, gráfico a la derecha */
+.split { display: grid; grid-template-columns: 600px 1fr; gap: 64px; }
+.split .left { display: flex; flex-direction: column; }
+.split .right { display: flex; flex-direction: column; min-height: 0; }
+.split .right .plate { flex: 1; min-height: 0; }
+.push { margin-top: auto; }
+
+/* Tablas tipo libro mayor */
+table.ledger { border-collapse: collapse; width: 100%; }
+.ledger th { font: 600 17px var(--sans); letter-spacing: 0.14em; text-transform: uppercase; text-align: left;
+             padding: 0 16px 12px 0; border-bottom: 1.5px solid var(--ink); }
+.ledger td { font: 400 24px/1.3 var(--sans); padding: 13px 16px 13px 0; border-bottom: 1px solid var(--faint); vertical-align: top; }
+.ledger td.n { font: 400 30px/1.1 var(--serif); white-space: nowrap; }
+.ledger tr.hl td { background: rgba(31, 43, 224, 0.08); }
+.ledger td.mono { font: 400 21px var(--mono); }
+.ledger.lg td { font-size: 29px; padding-top: 22px; padding-bottom: 22px; }
+.ledger.lg td.n { font-size: 38px; }
+.ledger.lg td.mono { font-size: 26px; }
+
+/* Números grandes */
+.big { font: 400 200px/0.85 var(--serif); letter-spacing: -0.02em; }
+.big sup { font-size: 0.4em; vertical-align: top; }
+.mid { font: 400 120px/0.9 var(--serif); letter-spacing: -0.015em; }
+
+/* Barras horizontales nativas */
+.hbar { display: grid; grid-template-columns: 200px 1fr 90px; align-items: center; gap: 18px; }
+.hbar .nm { font: 400 22px var(--mono); text-align: right; }
+.hbar .tr { height: 30px; background: var(--grid); position: relative; outline: 1px solid var(--faint); }
+.hbar .fl { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); transform-origin: left; transform: scaleX(0); transition: transform 1.1s var(--ease); }
+.slide.visible .hbar .fl { transform: scaleX(1); }
+.hbar .v { font: 400 28px var(--serif); }
+.hbar.dim .fl { background: var(--ink-soft); opacity: 0.55; }
+
+/* ===========================================
+   ANIMACIONES: aparición escalonada
+   =========================================== */
+.r { opacity: 0; transform: translateY(26px); transition: opacity 0.8s var(--ease), transform 0.8s var(--ease); transition-delay: var(--d, 0s); }
+.slide.visible .r { opacity: 1; transform: none; }
+
+/* ===========================================
+   NOTAS DEL ORADOR (tecla N) y PROGRESO
+   =========================================== */
+.notes-panel { position: fixed; left: 0; right: 0; bottom: 0; max-height: 42vh; overflow: auto; z-index: 5000;
+               background: rgba(20, 24, 60, 0.96); color: #F0EBDE; font: 400 17px/1.5 'Hanken Grotesk', sans-serif;
+               padding: 18px 28px 24px; transform: translateY(100%); transition: transform 0.3s ease; }
+.notes-panel.open { transform: none; }
+.notes-panel h4 { font: 500 13px 'DM Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; margin-bottom: 8px; }
+.notes-panel p { margin-bottom: 8px; max-width: 1100px; }
+.progress { position: fixed; left: 0; top: 0; height: 3px; background: var(--ink); z-index: 4000; transition: width 0.3s ease; }
+
+/* ===========================================
+   EDICIÓN EN LÍNEA (tecla E o esquina superior izquierda)
+   =========================================== */
+.edit-hotzone { position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; cursor: pointer; }
+.edit-toggle { position: fixed; top: 16px; left: 16px; z-index: 10001; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+               font: 500 13px 'DM Mono', monospace; background: #1F2BE0; color: #F0EBDE; border: 0; padding: 8px 12px; cursor: pointer; }
+.edit-toggle.show, .edit-toggle.active { opacity: 1; pointer-events: auto; }
+body.editing [contenteditable="true"] { outline: 1px dashed rgba(31, 43, 224, 0.5); }
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ======================= 01 · PORTADA ======================= -->
+<section class="slide" data-sec="Apertura" data-who="Alejo Liendo">
+  <div class="c">
+    <div class="kick r" style="margin-top:200px;margin-bottom:30px">Ciencia de Datos · Ingeniería en Sistemas de Información · UTN Villa María</div>
+    <h1 class="r" style="margin-top:40px;font-size:150px">Análisis Exploratorio<br>de Datos</h1>
+    <p class="r" style="font:400 italic 64px/1.1 var(--serif);margin-top:34px">Campaña de marketing bancario</p>
+  </div>
+  <aside class="notes"><p>"Buenas, somos Alejo, Gastón, Ignacio y Valentino. Les presentamos el análisis exploratorio de una campaña de marketing telefónico de un banco."</p></aside>
+</section>
+
+<!-- ======================= 02 · CRISP-DM + PREGUNTA ======================= -->
+<section class="slide" data-sec="Apertura" data-who="Alejo Liendo">
+  <div class="c">
+    <h2 class="r">Dónde se ubica un EDA</h2>
+    <div style="display:grid;grid-template-columns:520px 1fr;gap:80px;margin-top:30px;align-items:center">
+      <svg class="r" viewBox="0 0 540 540" width="520" height="520" aria-label="Ciclo CRISP-DM con las fases 2 y 3 resaltadas">
+        <circle cx="270" cy="270" r="190" fill="none" stroke="#1F2BE0" stroke-width="1.5" stroke-dasharray="6 8"/>
+        <text x="270" y="262" text-anchor="middle" font-family="DM Mono" font-size="22" fill="#1F2BE0" letter-spacing="2">CRISP-DM</text>
+        <text x="270" y="292" text-anchor="middle" font-family="Hanken Grotesk" font-size="17" fill="#1F2BE0" opacity=".75">ciclo iterativo</text>
+        <g font-family="Hanken Grotesk" text-anchor="middle">
+          <circle cx="270" cy="80" r="66" fill="#F0EBDE" stroke="#1F2BE0" stroke-width="1.5"/>
+          <text x="270" y="72" font-family="Newsreader" font-size="34" fill="#1F2BE0">1</text><text x="270" y="102" font-size="17" fill="#1F2BE0">Negocio</text>
+          <circle cx="434.5" cy="175" r="66" fill="#1F2BE0"/>
+          <text x="434.5" y="167" font-family="Newsreader" font-size="34" fill="#F0EBDE">2</text><text x="434.5" y="197" font-size="17" fill="#F0EBDE" font-weight="600">Datos</text>
+          <circle cx="434.5" cy="365" r="66" fill="#1F2BE0"/>
+          <text x="434.5" y="357" font-family="Newsreader" font-size="34" fill="#F0EBDE">3</text><text x="434.5" y="387" font-size="17" fill="#F0EBDE" font-weight="600">Preparación</text>
+          <circle cx="270" cy="460" r="66" fill="#F0EBDE" stroke="#1F2BE0" stroke-width="1.5"/>
+          <text x="270" y="452" font-family="Newsreader" font-size="34" fill="#1F2BE0">4</text><text x="270" y="482" font-size="17" fill="#1F2BE0">Modelado</text>
+          <circle cx="105.5" cy="365" r="66" fill="#F0EBDE" stroke="#1F2BE0" stroke-width="1.5"/>
+          <text x="105.5" y="357" font-family="Newsreader" font-size="34" fill="#1F2BE0">5</text><text x="105.5" y="387" font-size="17" fill="#1F2BE0">Evaluación</text>
+          <circle cx="105.5" cy="175" r="66" fill="#F0EBDE" stroke="#1F2BE0" stroke-width="1.5"/>
+          <text x="105.5" y="167" font-family="Newsreader" font-size="34" fill="#1F2BE0">6</text><text x="105.5" y="197" font-size="17" fill="#1F2BE0">Despliegue</text>
+        </g>
+      </svg>
+      <table class="ledger r">
+        <tr><th>Fase</th><th>¿Es EDA?</th><th>En nuestro trabajo</th></tr>
+        <tr><td>1 · Comprensión del negocio</td><td>No, marco previo</td><td>Pregunta de investigación</td></tr>
+        <tr class="hl"><td>2 · Comprensión de los datos</td><td><b>Sí, núcleo</b></td><td>Diapos 3 a 15</td></tr>
+        <tr class="hl"><td>3 · Preparación de los datos</td><td><b>Sí, en parte</b></td><td>Diapos 5, 12 y 18</td></tr>
+        <tr><td>4 · Modelado</td><td>Próximo paso</td><td>Recomendaciones (17–19)</td></tr>
+        <tr><td>5 · Evaluación</td><td>Próximo paso</td><td>Métricas sugeridas (17)</td></tr>
+        <tr><td>6 · Despliegue</td><td>No</td><td>Fuera del alcance</td></tr>
+      </table>
+    </div>
+    <div class="r" style="position:absolute;left:0;right:0;bottom:0;border-top:1.5px solid var(--ink);padding-top:18px;display:grid;grid-template-columns:240px 1fr;gap:30px">
+      <span class="label" style="padding-top:8px">Pregunta · fase 1</span>
+      <p class="q" style="font:400 italic 33px/1.25 var(--serif)">¿Qué características del cliente (demográficas y financieras) y qué factores de la campaña (frecuencia, temporalidad y canal) se asocian con una mayor probabilidad de suscribir un depósito a término?</p>
+    </div>
+  </div>
+  <aside class="notes"><p>"En Ciencia de Datos trabajamos con CRISP-DM, el ciclo estándar para proyectos de minería de datos. Tiene seis fases y es iterativo: se puede volver atrás. Nuestro EDA ocupa la fase 2, comprensión de los datos, y parte de la fase 3, preparación. Partimos de una pregunta de negocio (fase 1) y terminamos dejando listas las recomendaciones para el modelado y la evaluación (fases 4 y 5)."</p><p>Por qué: deja claro el alcance. No hicimos un modelo, hicimos las fases que lo hacen posible.</p></aside>
+</section>
+
+<!-- ======================= 03 · DATASET ======================= -->
+<section class="slide" data-sec="Dataset" data-who="Alejo Liendo">
+  <div class="c">
+    <h2 class="r" style="max-width:none">Telemarketing para colocar depósitos a término</h2>
+    <div class="r" style="display:grid;grid-template-columns:1fr 1fr 1.25fr;margin-top:48px;border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink)">
+      <div style="padding:26px 0"><div class="mid">45.189</div><div class="label" style="margin-top:14px">clientes · 1 fila = 1 contacto</div></div>
+      <div style="padding:26px 40px;border-left:1px solid var(--faint)"><div class="mid">17</div><div class="label" style="margin-top:14px">variables · 7 num. y 10 cat.</div></div>
+      <div style="padding:26px 40px;border-left:1px solid var(--faint);background:rgba(31,43,224,.08)"><div class="mid">11,7 %</div><div class="label" style="margin-top:14px">suscribió · la vara para comparar todo</div></div>
+    </div>
+    <table class="ledger r" style="margin-top:44px">
+      <tr><th style="width:420px">Grupo</th><th>Variables</th></tr>
+      <tr><td class="n">Perfil del cliente</td><td class="mono">age · job · marital · education</td></tr>
+      <tr><td class="n">Situación financiera</td><td class="mono">default · balance · housing · loan</td></tr>
+      <tr><td class="n">Campaña actual</td><td class="mono">contact · day · month · duration · campaign</td></tr>
+      <tr><td class="n">Campaña anterior</td><td class="mono">pdays · previous · poutcome</td></tr>
+      <tr class="hl"><td class="n">Objetivo</td><td><span class="mono">y</span> · ¿suscribió el depósito a término?</td></tr>
+    </table>
+  </div>
+  <aside class="notes"><p>"El dataset registra una campaña de telemarketing de un banco para colocar depósitos a término. Tenemos 45.189 clientes y 17 variables: 7 numéricas y 10 categóricas, incluida la objetivo. Las agrupamos en cuatro bloques: quién es el cliente, cómo está financieramente, cómo fue contactado en esta campaña y qué pasó en campañas anteriores. Solo el 11,7 % suscribió."</p><p>Si preguntan: education es ordinal; month es ordinal por calendario; pdays usa −1 como "nunca contactado"; duration está en segundos.</p></aside>
+</section>
+
+<!-- ======================= 04 · PASO 1 CALIDAD ======================= -->
+<section class="slide" data-sec="Paso 1 · Calidad" data-who="Gastón Magni">
+  <div class="c">
+    <h2 class="r" style="max-width:none">Los faltantes estaban escondidos</h2>
+    <div class="r" style="display:grid;grid-template-columns:460px 1fr;margin-top:48px;border-top:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink)">
+      <div style="padding:50px 40px 50px 0;display:flex;flex-direction:column;justify-content:center">
+        <div class="big">0</div>
+        <div class="label" style="margin-top:16px;line-height:1.6">nulos y duplicados</div>
+        <p class="small" style="margin-top:18px">A simple vista el dataset parece completo.</p>
+      </div>
+      <div style="padding:50px 0 50px 50px;border-left:1px solid var(--faint);display:flex;flex-direction:column;justify-content:center;gap:36px">
+        <p class="label">Valores codificados como “unknown”</p>
+        <div class="hbar"><span class="nm">poutcome</span><span class="tr" style="height:44px"><span class="fl" style="width:82%"></span></span><span class="v">82 %</span></div>
+        <div class="hbar"><span class="nm">contact</span><span class="tr" style="height:44px"><span class="fl" style="width:29%"></span></span><span class="v">29 %</span></div>
+        <div class="hbar"><span class="nm">education</span><span class="tr" style="height:44px"><span class="fl" style="width:4%"></span></span><span class="v">4 %</span></div>
+        <div class="hbar"><span class="nm">job</span><span class="tr" style="height:44px"><span class="fl" style="width:0.6%"></span></span><span class="v">0,6 %</span></div>
+      </div>
+    </div>
+    <div class="callout solid r" style="margin-top:56px;display:grid;grid-template-columns:200px 1fr;gap:30px;align-items:center;font-size:28px;padding:28px 34px">
+      <span class="label" style="margin:0">Decisión</span>
+      <span><b>unknown</b> se conserva como categoría. En poutcome significa “no hubo campaña anterior”: imputarlo sería inventar un resultado que nunca existió.</span>
+    </div>
+  </div>
+  <aside class="notes"><p>"Lo primero fue revisar si los datos estaban completos. No hay nulos ni duplicados, pero los faltantes vienen escondidos como el texto 'unknown'. Decidimos no imputarlos y dejarlos como una categoría más, porque el 'unknown' tiene una razón. En poutcome, el 82 % de los casos, significa que el cliente no participó de la campaña anterior: no hay resultado que registrar. Imputarlo sería inventar un resultado que nunca existió. ¿Cómo sabemos que esos clientes no participaron? Lo mostramos en la próxima diapo, cruzando poutcome con pdays y previous."</p><p>Por qué: en poutcome y contact el "no sé" dice algo. Más adelante vemos que contact = unknown rinde muy distinto.</p></aside>
+</section>
+
+<!-- ======================= 05 · PASO 2 CENTINELA ======================= -->
+<section class="slide" data-sec="Paso 2 · Preparación" data-who="Gastón Magni">
+  <div class="c">
+    <h2 class="r">Tres variables, una misma historia</h2>
+    <div class="r" style="margin-top:40px;display:flex;align-items:center;gap:22px;font:400 34px var(--mono)">
+      <span style="border:1.5px solid var(--ink);padding:16px 24px;background:var(--paper)">pdays = −1</span><span>≡</span>
+      <span style="border:1.5px solid var(--ink);padding:16px 24px;background:var(--paper)">previous = 0</span><span>≡</span>
+      <span style="border:1.5px solid var(--ink);padding:16px 24px;background:var(--paper)">poutcome = unknown</span>
+      <span style="margin-left:20px">→</span>
+      <span style="background:var(--ink);color:var(--paper);padding:16px 26px;font-family:var(--sans);font-size:30px">82 % nunca contactado antes</span>
+    </div>
+    <table class="ledger r" style="margin-top:50px">
+      <tr><th style="width:290px">Variable creada</th><th style="width:560px">Cómo se construye</th><th>Para qué</th></tr>
+      <tr><td class="mono">contactado_antes</td><td>pdays distinto de −1 (sí / no)</td><td>Comparar tasas: <b>23,1 % vs. 9,2 %</b></td></tr>
+      <tr><td class="mono">pdays_real</td><td>pdays con el −1 reemplazado por vacío</td><td>Días reales entre contactados (mediana ~194)</td></tr>
+      <tr><td class="mono">y_bin</td><td>yes = 1, no = 0</td><td>Su promedio por grupo es la tasa</td></tr>
+      <tr><td class="mono">month, education</td><td>Categorías ordenadas</td><td>Gráficos en orden natural</td></tr>
+    </table>
+    <p class="small r" style="margin-top:22px;opacity:.8">Además: balance, duration y pdays convertidas de float a entero.</p>
+  </div>
+  <aside class="notes"><p>"pdays mezcla dos cosas: un código, −1, y una cantidad real de días. Si la promediamos así, la media da 40 días, lo cual no describe a nadie. Por eso la partimos en dos variables. Y acá está cómo llegamos a lo que adelantamos en la diapo anterior: hicimos una tabla cruzada de las tres variables del historial y vimos que, prácticamente sin excepciones, pdays = −1, previous = 0 y poutcome = unknown marcan al mismo grupo: los clientes que no participaron de la campaña anterior. Si nunca te llamaron antes, no hay días desde el último llamado, hay cero contactos previos y no hay resultado. Son tres formas de decir lo mismo, y por eso más adelante proponemos quedarnos con una sola."</p><p>Por qué: un valor centinela tratado como número distorsiona media, desvío y correlaciones.</p></aside>
+</section>
+
+<!-- ======================= 06 · PASO 3 DESBALANCE ======================= -->
+<section class="slide" data-sec="Paso 3 · Objetivo" data-who="Gastón Magni">
+  <div class="c split">
+    <div class="left">
+      <h2 class="r">Casi nadie dice que sí</h2>
+      <p class="lede r" style="margin-top:36px">La variable objetivo está muy desbalanceada: por cada cliente que suscribe, hay más de siete que no.</p>
+      <div class="callout push r"><span class="label">Por qué importa</span>Un modelo que diga siempre “no” acertaría casi siempre sin aprender nada. Por eso, de acá en adelante, cada tasa se compara contra el 11,7&nbsp;%.</div>
+    </div>
+    <div class="right r" style="justify-content:flex-end;padding-bottom:10px">
+      <div style="display:flex;align-items:flex-end;gap:90px;height:720px;padding:0 60px;border-bottom:1.5px solid var(--ink)">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;align-items:center">
+          <div class="big" style="font-size:110px;margin-bottom:16px">88,3 %</div>
+          <div class="fl-v" style="width:100%;height:88.3%;background:var(--ink)"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;align-items:center">
+          <div class="big" style="font-size:110px;margin-bottom:16px">11,7 %</div>
+          <div class="fl-v" style="width:100%;height:11.7%;background:var(--paper);border:3px solid var(--ink)"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:90px;padding:14px 60px 0" class="label"><span style="flex:1;text-align:center">No suscribe</span><span style="flex:1;text-align:center">Sí suscribe</span></div>
+    </div>
+  </div>
+  <aside class="notes"><p>Datos para decir: razón 7,6 a 1; 1 de cada 8,5 clientes suscribe.</p><p>"Solo 1 de cada 8,5 clientes suscribe. Un modelo que diga siempre 'no' acertaría el 88 % sin aprender nada."</p><p>Por qué lo miramos primero: define cómo se lee todo lo demás. Anticipa el modelado: no usar accuracy, estratificar la partición y evaluar balanceo de clases.</p></aside>
+</section>
+
+<!-- ======================= 07 · PASO 4 NUMÉRICAS ======================= -->
+<section class="slide" data-sec="Paso 4 · Numéricas" data-who="Gastón Magni">
+  <div class="c">
+    <h2 class="r" style="max-width:none">Predominio de asimetría positiva</h2>
+    <table class="ledger lg r" style="margin-top:44px">
+      <tr><th style="width:300px">Variable</th><th style="width:340px">Asimetría</th><th>Lo que muestra</th></tr>
+      <tr><td class="mono">balance</td><td class="n">≈ 57</td><td>Mediana 448 vs. media 1.374</td></tr>
+      <tr><td class="mono">campaign</td><td class="n">≈ 4,9</td><td>Hasta 63 contactos</td></tr>
+      <tr><td class="mono">duration</td><td class="n">≈ 3,1</td><td>Mediana 180 s, máximo 4.918 s</td></tr>
+      <tr><td class="mono">age</td><td class="n">casi 0</td><td>Casi simétrica, mediana 39</td></tr>
+      <tr><td class="mono">day</td><td class="n">—</td><td>Uniforme a lo largo del mes</td></tr>
+    </table>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:56px">
+      <div class="callout solid r"><span class="label">Decisión</span>Los outliers no son errores: son clientes con mucho saldo o llamadas largas. <b>No los eliminamos.</b></div>
+      <div class="callout r"><span class="label">Por qué</span>Con distribuciones asimétricas, la mediana representa mejor que la media. En pdays y previous el IQR vale 0: la regla de Tukey no sirve ahí.</div>
+    </div>
+  </div>
+  <aside class="notes"><p>"Calculamos tendencia central, dispersión, asimetría, curtosis y outliers con la regla de Tukey. Casi todas las numéricas tienen colas largas. Los outliers no son errores: son clientes con mucho saldo o llamadas largas. No los eliminamos."</p><p>Por qué: la asimetría decide qué estadístico usar. En pdays y previous el IQR vale 0, así que Tukey marcaría falsos outliers.</p></aside>
+</section>
+
+<!-- ======================= 08 · PASO 5 ESCALA LOG ======================= -->
+<section class="slide" data-sec="Paso 5 · Distribuciones" data-who="Gastón Magni">
+  <div class="c split">
+    <div class="left">
+      <h2 class="r">En escala original todo se aplasta contra el cero</h2>
+      <ul class="facts r" style="margin-top:40px">
+        <li><span class="t">balance · duration</span>En escala log se ven casi simétricas.</li>
+        <li><span class="t">age</span>Se concentra entre 28 y 60 y cae de golpe a los 60, posiblemente por la jubilación.</li>
+      </ul>
+      <div class="push r">
+        <div class="plate" style="height:210px"><img src="img/c32_0.png" alt="Histogramas de age y day"></div>
+        <div class="cap">age y day · notebook 4.2</div>
+      </div>
+    </div>
+    <div class="right r">
+      <div class="plate"><img src="img/c34_0.png" alt="balance, duration y campaign en escala original recortada y en escala logarítmica"></div>
+      <div class="cap">Escala original recortada vs. logarítmica · notebook 4.2</div>
+    </div>
+  </div>
+  <aside class="notes"><p>"En escala original todo se aplasta contra el cero. En escala log, balance y duration se ven casi simétricas. age se concentra entre 28 y 60 y cae de golpe a los 60, posiblemente por la jubilación."</p><p>Por qué: dos escalas muestran la forma real sin borrar datos, y anticipan que conviene transformar con logaritmo para un modelo.</p></aside>
+</section>
+
+<!-- ======================= 09 · PASO 6 CATEGÓRICAS ======================= -->
+<section class="slide" data-sec="Paso 6 · Categóricas" data-who="Gastón Magni">
+  <div class="c split">
+    <div class="left">
+      <h2 class="r">Frecuencias por categoría</h2>
+      <ul class="facts r" style="margin-top:30px">
+        <li><span class="t">month</span><b>30 %</b> de los llamados se hicieron en mayo: la campaña se concentró en pocos meses.</li>
+        <li><span class="t">default</span><b>98 %</b> de los clientes no tiene deuda en mora: la variable casi no varía.</li>
+        <li><span class="t">poutcome</span><b>82 %</b> no tuvo campaña anterior; solo el <b>3,3 %</b> la había aceptado.</li>
+        <li><span class="t">contact</span><b>29 %</b> de los contactos no tiene canal registrado.</li>
+        <li><span class="t">job</span><b>59 %</b> son blue-collar, management o technician.</li>
+      </ul>
+    </div>
+    <div class="right r">
+      <div class="plate"><img src="img/c41_0.png" alt="Grilla de frecuencias de variables categóricas"></div>
+      <div class="cap">Frecuencias por categoría · notebook 4.4</div>
+    </div>
+  </div>
+  <aside class="notes"><p>"Medimos cardinalidad y peso de la categoría dominante. default casi no varía, así que difícilmente aporte. La campaña no fue pareja en el año: mayo tiene casi un tercio de los llamados."</p><p>Por qué: saber cuántos clientes hay en cada categoría ayuda después: si un grupo tiene muy pocos casos, su tasa de suscripción puede salir alta o baja por azar.</p></aside>
+</section>
+
+<!-- ======================= 10 · PASO 7 NUMÉRICAS VS Y ======================= -->
+<section class="slide" data-sec="Paso 7 · Bivariado" data-who="Ignacio Mosconi">
+  <div class="c split">
+    <div class="left">
+      <h2 class="r">duration es la que más separa</h2>
+      <table class="ledger r" style="margin-top:34px">
+        <tr><th></th><th>Sí</th><th>No</th></tr>
+        <tr><td class="mono">duration</td><td class="n">426 s</td><td class="n">164 s</td></tr>
+        <tr><td class="mono">campaign</td><td class="n">2,1</td><td class="n">2,8</td></tr>
+        <tr><td class="mono">balance</td><td class="n">732</td><td class="n">417</td></tr>
+        <tr><td class="mono">age</td><td colspan="2">medianas casi iguales</td></tr>
+      </table>
+      <div class="callout push r"><span class="label">Test de Mann-Whitney</span>Compara posiciones, no valores: no exige normalidad ni lo afectan los outliers. Con 45.000 filas todo da significativo, así que miramos el tamaño del efecto.</div>
+    </div>
+    <div class="right r">
+      <div class="plate"><img src="img/c48_0.png" alt="Boxplots de variables numéricas según y"></div>
+      <div class="cap">Boxplots por y · notebook 5.1 · duration r ≈ 0,39</div>
+    </div>
+  </div>
+  <aside class="notes"><p>"Comparamos medianas y medias entre quienes suscriben y quienes no, y validamos con Mann-Whitney. Este test junta los valores de los dos grupos, los ordena de menor a mayor y se fija si los de un grupo tienden a quedar más arriba que los del otro. Como trabaja con posiciones y no con valores, no necesita que los datos sean normales y no lo afectan los outliers."</p><p>"La que más separa es duration. Menos contactos se asocian a más suscripción. Y age parece no importar, pero esconde una forma en U que vemos en el paso 9. Una llamada larga suele reflejar interés, aunque eso es un supuesto y además solo se sabe al cortar. Insistir mucho no mejora la conversión. El saldo es algo mayor entre quienes suscriben, pero con mucha superposición. Haber sido contactado antes suma, sobre todo si fue hace poco: 181 días de mediana contra 232. El día del mes no muestra efecto."</p><p>campaign: valores promedio (2,1 vs 2,8). duration y balance: medianas.</p></aside>
+</section>
+
+<!-- ======================= 11 · PASO 8 CATEGÓRICAS VS Y ======================= -->
+<section class="slide" data-sec="Paso 8 · Bivariado" data-who="Ignacio Mosconi">
+  <div class="c" style="display:grid;grid-template-columns:700px 1fr;gap:56px">
+      <div style="display:flex;flex-direction:column">
+      <h2 class="r">Tasa de suscripción<br>por categoría</h2>
+      <ul class="facts r spread" style="margin-top:44px">
+        <li><span class="t">poutcome</span>Aceptó la campaña anterior: <b>65&nbsp;%</b>. Sin historial: 9&nbsp;%.</li>
+        <li><span class="t">month</span>Mayo, el mes con más llamados: <b>6,7&nbsp;%</b>. Marzo o diciembre superan el 44&nbsp;%, con pocos llamados.</li>
+        <li><span class="t">contact</span>Por celular: <b>15&nbsp;%</b>. Sin canal registrado: 4&nbsp;%.</li>
+        <li><span class="t">housing</span>Sin hipoteca: <b>16,7&nbsp;%</b>. Con hipoteca: 7,7&nbsp;%.</li>
+        <li><span class="t">job</span>Estudiantes: <b>29&nbsp;%</b>. Jubilados: <b>23&nbsp;%</b>. Los más altos.</li>
+      </ul>
+      </div>
+      <div class="r" style="display:flex;flex-direction:column;min-height:0">
+        <div class="plate" style="flex:1;min-height:0"><img src="img/c53_0.png" alt="Tasas de suscripción por categoría"></div>
+        <div class="cap">Verde: por encima del 11,7&nbsp;% global · Rojo: por debajo · notebook 5.2</div>
+      </div>
+  </div>
+  <aside class="notes"><p>"Para cada categoría calculamos la tasa de suscripción y la comparamos con la global. Lo más fuerte es haber aceptado la campaña anterior: 65 % de éxito, contra 9 % de quienes no tienen historial. Los meses con tasa alta, como marzo o diciembre, tienen muy pocos llamados, así que suponemos que hay otra variable detrás y lo revisamos en los cruces. El canal 'unknown' rinde apenas 4 %, sin hipoteca se suscribe el doble, y estudiantes y jubilados son los perfiles que más suscriben. Educación, préstamos y estado civil pesan poco, y default casi nada."</p><p>Por qué la tasa y no el conteo: con clases desbalanceadas los conteos de "sí" siempre son chicos. El chi-cuadrado confirma que y depende de cada variable y ordena cuál pesa más.</p></aside>
+</section>
+
+<!-- ======================= 12 · PASO 9 TRAMOS ======================= -->
+<section class="slide" data-sec="Paso 9 · No linealidad" data-who="Ignacio Mosconi">
+  <div class="c" style="display:flex;flex-direction:column">
+    <h2 class="r" style="max-width:none">Tramos: relaciones que la correlación no ve</h2>
+    <p class="lede r" style="max-width:1500px;margin-top:22px">Pasamos cada variable numérica a tramos y calculamos la tasa de suscripción en cada uno. Así aparecen formas en U y umbrales que un coeficiente lineal no detecta.</p>
+    <div style="display:grid;grid-template-columns:560px 1fr;gap:50px;margin-top:34px;flex:1;min-height:0">
+      <ul class="facts plain r" style="align-self:center">
+        <li><span class="t">Edad · forma de U</span>Jóvenes y mayores de 60 suscriben mucho más que el resto.</li>
+        <li><span class="t">Duración · crece sostenida</span>Cuanto más larga la llamada, mayor la tasa.</li>
+        <li><span class="t">Contactos · insistir baja la tasa</span>Más llamados al mismo cliente, menor la tasa.</li>
+        <li><span class="t">Saldo · umbral</span>La tasa sube con el saldo hasta 1.500 y después se estabiliza.</li>
+      </ul>
+      <div class="r" style="display:flex;flex-direction:column;min-height:0">
+        <div class="plate" style="flex:1;min-height:0"><img src="img/c60_0.png" alt="Tasa de suscripción por tramos de edad, saldo, duración, contactos e historial"></div>
+        <div class="cap">Tasa por tramo · línea punteada: 11,7&nbsp;% global · notebook 5.3</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes"><p>"Agrupamos las numéricas en tramos para ver relaciones que la correlación no capta. Edad es el mejor ejemplo: correlación casi cero, pero jóvenes y mayores de 60 suscriben mucho más. Coincide con estudiantes y jubilados. Y insistir con llamados baja la tasa: de 14,6 % con un contacto a 3,9 % con más de diez. La duración crece casi en línea recta, el saldo sube hasta 1.500 y después se estabiliza, y entre los contactados antes la mejor tasa está en quienes recibieron el llamado hace menos de tres meses. Los picos por día del mes caen en días con pocos llamados, así que no los consideramos confiables."</p><p>Cifras: edad 18-25 → 24 %, 36-60 → ~10 %, 60+ → 42 %. Duración ≤ 1 min → 0,2 %, &gt; 10 min → 48 %. Contactos 1 → 14,6 %, &gt; 10 → 3,9 %. Saldo ≤ 0 → 6,9 %, 1.500-5.000 → ~17 %.</p><p>Contactado antes: 23,1 % vs 9,2 %. Por qué: Pearson solo mide relaciones lineales; los tramos muestran U y umbrales.</p></aside>
+</section>
+
+<!-- ======================= 13 · PASO 10 CRUCES ======================= -->
+<section class="slide" data-sec="Paso 10 · Cruces" data-who="Ignacio Mosconi">
+  <div class="c" style="display:flex;flex-direction:column">
+    <h2 class="r">Una variable sola puede engañar</h2>
+    <div style="display:grid;grid-template-columns:520px 1fr;grid-template-rows:repeat(3,1fr);gap:18px 50px;margin-top:26px;flex:1;min-height:0">
+      <div class="r" style="border-top:1.5px solid var(--ink);padding-top:12px"><span class="label">1 · Mes</span><p style="font:400 25px/1.35 var(--sans);margin-top:8px">Mayo: <b>13.748</b> contactos y <b>6,7 %</b>. Marzo: 477 y <b>52 %</b>.</p></div>
+      <div class="plate r" style="min-height:0;justify-content:flex-start"><img src="img/c64_0.png" alt="Volumen de contactos y tasa por mes" style="width:auto"></div>
+      <div class="r" style="border-top:1.5px solid var(--ink);padding-top:12px"><span class="label">2 · Canal × mes</span><p style="font:400 25px/1.35 var(--sans);margin-top:8px">96 % de los unknown cae en mayo-junio, pero aun ahí rinde menos: mayo <b>3 %</b> vs. <b>12 %</b> por celular.</p></div>
+      <div class="plate r" style="min-height:0;justify-content:flex-start"><img src="img/c70_0.png" alt="Heatmap contact por month" style="width:auto"></div>
+      <div class="r" style="border-top:1.5px solid var(--ink);padding-top:12px"><span class="label">3 · Créditos</span><p style="font:400 25px/1.35 var(--sans);margin-top:8px">Sin hipoteca ni préstamo: <b>~18 %</b>. Con al menos uno: <b>6-8 %</b>.</p></div>
+      <div class="plate r" style="min-height:0;justify-content:flex-start"><img src="img/c76_0.png" alt="Heatmap housing por loan" style="width:auto"></div>
+    </div>
+  </div>
+  <aside class="notes"><p>"Una variable sola puede engañar, así que cruzamos de a dos. El bajo rendimiento de 'unknown' no es solo un efecto de mayo. Y tener cualquier crédito reduce la tasa a menos de la mitad: 18 % sin créditos contra 6 a 8 % con alguno. Nuestro supuesto es que quien tiene deudas tiene menos margen para inmovilizar plata en un depósito. Sobre 'unknown', suponemos que marca contactos cargados sin canal informado o un segmento menos receptivo, porque rinde menos incluso dentro de mayo y junio. También vimos que el éxito en la campaña anterior pesa igual sin importar el canal, y que en mayo el celular rinde 12 % mientras en junio llega a 44 %: el mes solo no explica todo."</p><p>Los heatmaps ocultan celdas con menos de 30 casos.</p></aside>
+</section>
+
+<!-- ======================= 14 · PASO 11 CORRELACIÓN ======================= -->
+<section class="slide" data-sec="Paso 11 · Correlación" data-who="Ignacio Mosconi">
+  <div class="c split">
+    <div class="left">
+      <h2 class="r">Sin multicolinealidad grave</h2>
+      <ul class="facts r" style="margin-top:40px">
+        <li><span class="t">duration con y</span><b>r ≈ 0,39</b> · la única fuerte</li>
+        <li><span class="t">pdays con previous</span><b>r ≈ 0,54</b> · cuentan lo mismo</li>
+        <li><span class="t">Resto entre predictoras</span><b>|r| ≤ 0,16</b></li>
+      </ul>
+      <div class="callout solid push r"><span class="label">Para el modelo</span>Una sola representación del historial previo.</div>
+    </div>
+    <div class="right r">
+      <div class="plate"><img src="img/c82_0.png" alt="Matriz de correlación de Pearson"></div>
+      <div class="cap">Correlación de Pearson · notebook 5.5</div>
+    </div>
+  </div>
+  <aside class="notes"><p>"Fuera de duration, las correlaciones con y son débiles. Entre predictoras no hay multicolinealidad grave; solo pdays y previous cuentan casi lo mismo, el historial previo, porque valen −1 y 0 para los mismos clientes. Por eso en un modelo conviene quedarse con una sola representación. El pairplot lo confirma: la única numérica que separa visualmente a quienes suscriben es duration."</p></aside>
+</section>
+
+<!-- ======================= 15 · PASO 12 RANKING ======================= -->
+<section class="slide" data-sec="Paso 12 · Ranking" data-who="Valentino Terreno">
+  <div class="c split" style="grid-template-columns:560px 1fr">
+    <div class="left">
+      <h2 class="r">Todas las variables con la misma vara</h2>
+      <p class="r" style="font:400 italic 36px/1.3 var(--serif);margin-top:40px">V = √( χ² / (n · (k − 1)) )</p>
+      <p class="small r" style="margin-top:16px">De 0 (independientes) a 1 (una determina a la otra). Las numéricas se pasan antes a tramos.</p>
+      <div class="callout push r"><span class="label">Ojo</span>Depende de cómo se armaron los tramos: es una guía de orden, no una medida exacta.</div>
+    </div>
+    <div class="right r" id="ranking" style="justify-content:center;gap:9px"></div>
+  </div>
+  <aside class="notes"><p>"Para comparar todo con la misma vara usamos la V de Cramér, que mide qué tan fuerte es la relación entre dos variables categóricas. Se calcula a partir del chi-cuadrado de la tabla cruzada: se lo divide por la cantidad de casos y por el número de categorías menos uno, y se saca la raíz. Así da un valor entre 0 y 1, donde 0 significa que las variables son independientes y 1 que una determina por completo a la otra. Para usarla con las numéricas, primero las pasamos a tramos. Arriba quedan duración, resultado de la campaña anterior y mes. Abajo, default y day, prácticamente sin señal."</p></aside>
+</section>
+
+<!-- ======================= 16 · RESPUESTA ======================= -->
+<section class="slide" data-sec="Cierre · Respuesta" data-who="Valentino Terreno">
+  <div class="c" style="display:flex;flex-direction:column">
+    <h2 class="r" style="max-width:none">¿Quién tiene más probabilidad de suscribir?</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:44px;flex:1">
+      <div class="r" style="border:1.5px solid var(--ink);padding:30px 36px;background:var(--paper);display:flex;flex-direction:column">
+        <p class="label" style="margin-bottom:18px">Del lado del cliente</p>
+        <ul class="facts fill">
+          <li><span>Aceptó una campaña anterior (<b>~65&nbsp;%</b>) o al menos fue contactado antes (23&nbsp;% vs. 9&nbsp;%)</span></li>
+          <li><span>Está en los extremos de edad: 18-25 o, sobre todo, más de 60</span></li>
+          <li><span>No tiene créditos vigentes y tiene saldo positivo</span></li>
+        </ul>
+      </div>
+      <div class="r" style="border:1.5px solid var(--ink);padding:30px 36px;background:var(--paper);display:flex;flex-direction:column">
+        <p class="label" style="margin-bottom:18px">Del lado de la campaña</p>
+        <ul class="facts fill">
+          <li><span>Contactado por celular o teléfono, no por canal desconocido</span></li>
+          <li><span>Pocos llamados en la campaña: insistir baja la tasa</span></li>
+          <li style="opacity:.7"><span>Efectos menores: educación terciaria, soltero</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout solid r" style="margin-top:34px;display:grid;grid-template-columns:200px 1fr;gap:30px;align-items:center;font-size:28px">
+      <span class="label" style="margin:0">En síntesis</span>
+      <span>Pesan el historial con el banco, la edad y los créditos; y en la campaña, el canal, el mes y no insistir de más.</span>
+    </div>
+  </div>
+  <aside class="notes"><p>"Volviendo a la pregunta del principio: del lado del cliente pesan el historial con el banco, la edad y la situación crediticia. Del lado de la campaña, el canal, el mes y no insistir de más."</p><p>Es la diapo que el público tiene que recordar.</p></aside>
+</section>
+
+<!-- ======================= 17 · PRECAUCIONES ======================= -->
+<section class="slide" data-sec="Cierre · Precauciones" data-who="Valentino Terreno">
+  <div class="c" style="display:flex;flex-direction:column">
+    <h2 class="r" style="max-width:none">Precauciones antes de modelar</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:44px;flex:1">
+      <div class="callout solid r" style="display:flex;flex-direction:column;padding:40px 44px">
+        <span class="label">1 · Fuga de información</span>
+        <p style="font:400 64px/1.05 var(--serif);margin-top:24px">duration es la más fuerte, y es una trampa</p>
+        <p style="font:400 29px/1.45 var(--sans);margin-top:auto">Se conoce recién al cortar la llamada. Un modelo que la use se ve excelente en el papel, pero no sirve para decidir a quién llamar.</p>
+      </div>
+      <div style="display:grid;grid-template-rows:1fr 1fr 1fr;gap:22px">
+        <div class="callout r" style="display:flex;flex-direction:column;justify-content:center;font-size:29px"><span class="label">2 · Clases desbalanceadas</span>No usar accuracy: medir con recall, precision, F1 o AUC, y estratificar la partición.</div>
+        <div class="callout r" style="display:flex;flex-direction:column;justify-content:center;font-size:29px"><span class="label">3 · Variables entrelazadas</span>month con contact; pdays, previous y poutcome entre sí.</div>
+        <div class="callout r" style="display:flex;flex-direction:column;justify-content:center;font-size:29px"><span class="label">4 · Relaciones no lineales</span>age en forma de U; balance y campaign muy asimétricas.</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes"><p>"duration es la variable más fuerte, pero es una trampa. Si sabemos cuánto duró la llamada, ya sabemos cómo terminó. Un modelo que la use se ve excelente en el papel pero no sirve para decidir a quién llamar."</p><p>Por qué: un EDA no solo encuentra señales; también advierte cuáles no se pueden usar.</p></aside>
+</section>
+
+<!-- ======================= 18 · CANDIDATAS ======================= -->
+<section class="slide" data-sec="Cierre · Modelo" data-who="Valentino Terreno">
+  <div class="c">
+    <h2 class="r">El entregable del EDA para la etapa siguiente</h2>
+    <div style="display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:40px;margin-top:56px">
+      <div class="r" style="border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);padding:40px 36px;min-height:520px">
+        <p class="label">Incluir</p>
+        <p style="font:400 31px/1.8 var(--mono);margin-top:22px">poutcome<br>age (en tramos)<br>job · housing · loan<br>balance (transformada)<br>education · marital<br>campaign</p>
+      </div>
+      <div class="r" style="border:1.5px solid var(--ink);background:var(--paper);padding:40px 36px;min-height:520px">
+        <p class="label">Con cuidado</p>
+        <p style="font:400 31px/1.8 var(--mono);margin-top:22px">month<br>contact<br>pdays_real</p>
+        <p style="font:400 26px/1.4 var(--sans);margin-top:18px">previous + contactado_antes: <b>una sola representación</b></p>
+      </div>
+      <div class="r" style="border:1.5px dashed var(--ink);padding:40px 36px;min-height:520px">
+        <p class="label">Descartar o revisar</p>
+        <p style="font:400 31px/1.8 var(--sans);margin-top:22px"><span class="mono">duration</span> · fuga<br><span class="mono">default</span> · casi constante<br><span class="mono">day</span> · sin señal</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes"><p>"Con todo esto armamos una propuesta de qué variables llevar al modelo, cuáles usar con cuidado y cuáles descartar."</p></aside>
+</section>
+
+<!-- ======================= 19 · LIMITACIONES ======================= -->
+<section class="slide" data-sec="Cierre · Límites" data-who="Valentino Terreno">
+  <div class="c" style="display:flex;flex-direction:column">
+    <h2 class="r" style="max-width:none">Esto identifica señales, <i>no causas</i></h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:28px 40px;margin-top:44px;flex:1">
+      <div class="callout r" style="display:flex;flex-direction:column;justify-content:center;font-size:29px;padding:30px 36px"><span class="label">1 · Correlación no es causalidad</span>Muchos llamados pueden ser consecuencia del desinterés del cliente, no su causa.</div>
+      <div class="callout r" style="display:flex;flex-direction:column;justify-content:center;font-size:29px;padding:30px 36px"><span class="label">2 · Significancia vs. efecto</span>Con 45.000 filas casi todo da significativo: por eso priorizamos el tamaño del efecto.</div>
+      <div class="callout r" style="display:flex;flex-direction:column;justify-content:center;font-size:29px;padding:30px 36px"><span class="label">3 · Categorías con pocos casos</span>student y los meses de baja actividad tienen pocos clientes: sus tasas son menos estables.</div>
+      <div class="callout r" style="display:flex;flex-direction:column;justify-content:center;font-size:29px;padding:30px 36px"><span class="label">4 · Sin año</span>Solo hay mes y día: no se pueden separar efectos de distintos años ni de la coyuntura.</div>
+    </div>
+    <div class="callout solid r" style="margin-top:32px;display:grid;grid-template-columns:200px 1fr;gap:30px;align-items:center;font-size:28px">
+      <span class="label" style="margin:0">Próximo paso</span>
+      <span>Entrenar y validar un modelo con datos fuera de muestra. Los árboles manejan mejor las relaciones no lineales.</span>
+    </div>
+  </div>
+  <aside class="notes"><p>"Esto es descriptivo: identifica señales, no causas. Por ejemplo, muchos llamados pueden ser consecuencia del desinterés del cliente y no su causa. La contribución real de cada variable hay que validarla con un modelo y datos fuera de muestra."</p></aside>
+</section>
+
+<!-- ======================= 20 · PREGUNTAS ======================= -->
+<section class="slide" data-sec="Cierre" data-who="Equipo">
+  <div class="c" style="display:flex;align-items:center;justify-content:center">
+    <h1 class="r" style="text-align:center"><i>¿Preguntas?</i></h1>
+  </div>
+  <aside class="notes"><p><b>¿Por qué no imputaron los unknown?</b> En poutcome y contact son informativos; en job y education son pocos casos.</p><p><b>¿Por qué no sacaron los outliers?</b> Son valores reales (saldos altos, llamadas largas), no errores de carga.</p><p><b>¿Por qué la V de Cramér y no solo correlación?</b> Compara numéricas y categóricas en la misma escala y capta relaciones no lineales.</p><p><b>¿Por qué mayo rinde tan poco?</b> Concentra el 30 % de los contactos y casi todos los de canal desconocido; parece un llamado masivo y menos segmentado.</p></aside>
+</section>
+
+</main>
+</div>
+
+<!-- Controles fuera del escenario -->
+<div class="progress" id="progress"></div>
+<div class="notes-panel" id="notesPanel" aria-live="polite"></div>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Modo edición (E)">EDITAR</button>
+
+<script>
+/* ===========================================
+   RANKING V DE CRAMÉR (barras nativas)
+   =========================================== */
+(function () {
+    const data = [['duration',0.40],['poutcome',0.31],['month',0.26],['pdays',0.19],['age',0.18],['previous',0.17],
+        ['contact',0.15],['housing',0.14],['job',0.14],['balance',0.10],['campaign',0.09],['education',0.07],
+        ['loan',0.07],['marital',0.07],['default',0.02],['day',0.02]];
+    const box = document.getElementById('ranking');
+    data.forEach(([n, v], i) => {
+        const row = document.createElement('div');
+        row.className = 'hbar' + (i < 3 ? '' : ' dim');
+        row.style.gridTemplateColumns = '170px 1fr 80px';
+        row.innerHTML = `<span class="nm">${n}</span><span class="tr" style="height:34px"><span class="fl" style="width:${v / 0.42 * 100}%;transition-delay:${0.2 + i * 0.04}s"></span></span><span class="v">${v.toFixed(2).replace('.', ',')}</span>`;
+        box.appendChild(row);
+    });
+})();
+
+/* ===========================================
+   CHROME: hairlines, sección, orador y página
+   =========================================== */
+(function () {
+    const slides = document.querySelectorAll('.slide');
+    slides.forEach((s, i) => {
+        const n = String(i + 1).padStart(2, '0');
+        s.insertAdjacentHTML('afterbegin',
+            `<div class="chrome top"><span>EDA · Campaña de marketing bancario</span><span>${s.dataset.sec || ''}</span></div>
+             <div class="hair top"></div><div class="hair bot"></div>
+             <div class="chrome bot"><span>Liendo · Magni · Mosconi · Terreno</span><span>${n} / ${slides.length}</span></div>`);
+        // Escalonado automático de las animaciones de cada diapositiva
+        s.querySelectorAll('.r').forEach((el, k) => el.style.setProperty('--d', (0.05 + k * 0.09) + 's'));
+    });
+})();
+
+/* ===========================================
+   CONTROLADOR DE LA PRESENTACIÓN
+   =========================================== */
+class SlidePresentation {
+    constructor() {
+        this.slides = document.querySelectorAll('.slide');
+        this.stage = document.getElementById('deckStage');
+        this.notes = document.getElementById('notesPanel');
+        this.current = 0;
+        this.setupScale();
+        this.setupNav();
+        const start = parseInt(location.hash.slice(1), 10);
+        this.show(isNaN(start) ? 0 : start - 1);
+    }
+    setupScale() {
+        const scale = () => {
+            const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+            this.stage.style.transform = `translate(${(innerWidth - 1920 * k) / 2}px, ${(innerHeight - 1080 * k) / 2}px) scale(${k})`;
+        };
+        scale();
+        addEventListener('resize', scale);
+    }
+    setupNav() {
+        document.addEventListener('keydown', e => {
+            if (e.target.isContentEditable) return;
+            if (['ArrowRight', 'ArrowDown', ' ', 'PageDown', 'Enter'].includes(e.key)) { e.preventDefault(); this.show(this.current + 1); }
+            if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); this.show(this.current - 1); }
+            if (e.key === 'Home') this.show(0);
+            if (e.key === 'End') this.show(this.slides.length - 1);
+            if (e.key === 'n' || e.key === 'N') this.notes.classList.toggle('open');
+            if (e.key === 'f' || e.key === 'F') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+        });
+        let x0 = null;
+        addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+        addEventListener('touchend', e => {
+            if (x0 === null) return;
+            const dx = e.changedTouches[0].clientX - x0;
+            if (Math.abs(dx) > 50) this.show(this.current + (dx < 0 ? 1 : -1));
+            x0 = null;
+        });
+        let lock = false;
+        addEventListener('wheel', e => {
+            if (lock || this.notes.contains(e.target)) return;
+            lock = true; setTimeout(() => lock = false, 700);
+            this.show(this.current + (e.deltaY > 0 ? 1 : -1));
+        }, { passive: true });
+    }
+    show(i) {
+        this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+        this.slides.forEach((s, k) => {
+            s.classList.toggle('active', k === this.current);
+            s.classList.toggle('visible', k === this.current);
+        });
+        const s = this.slides[this.current];
+        const note = s.querySelector('.notes');
+        this.notes.innerHTML = `<h4>Diapo ${this.current + 1} · ${s.dataset.who || ''} · notas (N para ocultar)</h4>` + (note ? note.innerHTML : '');
+        document.getElementById('progress').style.width = ((this.current + 1) / this.slides.length * 100) + '%';
+        history.replaceState(null, '', '#' + (this.current + 1));
+    }
+}
+const deck = new SlidePresentation();
+
+/* ===========================================
+   EDICIÓN EN LÍNEA (E o esquina sup. izquierda)
+   Guarda en localStorage; Ctrl+S descarga el HTML
+   =========================================== */
+const editor = {
+    isActive: false,
+    key: 'eda-banco-slides-edits',
+    targets() { return document.querySelectorAll('.slide h1, .slide h2, .slide p, .slide li, .slide td, .slide .kick, .slide .callout'); },
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.body.classList.toggle('editing', this.isActive);
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        this.targets().forEach(el => el.contentEditable = this.isActive ? 'true' : 'false');
+        if (!this.isActive) this.save();
+    },
+    save() {
+        try { localStorage.setItem(this.key, JSON.stringify([...this.targets()].map(el => el.innerHTML))); } catch (e) {}
+    },
+    load() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(this.key) || 'null');
+            const els = this.targets();
+            if (saved && saved.length === els.length) els.forEach((el, i) => el.innerHTML = saved[i]);
+        } catch (e) {}
+    },
+    download() {
+        this.save();
+        const clone = document.documentElement.cloneNode(true);
+        clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+        clone.querySelectorAll('.chrome, .hair').forEach(el => el.remove());
+        clone.querySelector('#ranking').innerHTML = '';
+        clone.querySelector('body').classList.remove('editing');
+        const blob = new Blob(['<!DOCTYPE html>\n' + clone.outerHTML], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = 'index.html'; a.click();
+    }
+};
+editor.load();
+document.getElementById('editToggle').addEventListener('click', () => editor.toggleEditMode());
+const hotzone = document.querySelector('.edit-hotzone');
+const editToggle = document.getElementById('editToggle');
+let hideTimeout = null;
+hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+hotzone.addEventListener('click', () => editor.toggleEditMode());
+document.addEventListener('keydown', e => {
+    if ((e.key === 'e' || e.key === 'E') && !e.target.isContentEditable) editor.toggleEditMode();
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); editor.download(); }
+});
+</script>
+</body>
+</html>
